@@ -149,6 +149,8 @@
   @keyframes countPop{0%{transform:scale(1.5);opacity:0}50%{transform:scale(1);opacity:1}80%{transform:scale(1);opacity:1}100%{transform:scale(.5);opacity:0}}
   .confetti-piece{position:fixed;pointer-events:none;animation:confettiFall linear forwards;z-index:200;}
   @keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+  @keyframes rebellBounce{from{transform:scale(1) rotate(-10deg)}to{transform:scale(1.2) rotate(10deg)}}
+  @keyframes starFloat{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(-120px) rotate(360deg);opacity:0}}
   .winning-glow-left{animation:glowL .8s ease;}
   .winning-glow-right{animation:glowR .8s ease;}
   @keyframes glowL{0%{box-shadow:0 0 0 0 rgba(255,71,87,0)}50%{box-shadow:0 0 80px 30px rgba(255,71,87,.35)}100%{box-shadow:0 0 0 0 rgba(255,71,87,0)}}
@@ -165,6 +167,16 @@
 
 <div class="countdown-overlay" id="countdown-overlay">
   <div class="countdown-num" id="countdown-num">3</div>
+</div>
+
+<!-- 역배당 축하 오버레이 -->
+<div id="rebel-overlay" style="display:none;position:fixed;inset:0;z-index:200;background:linear-gradient(135deg,#0a0010,#1a0030,#000820);align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:32px;text-align:center;">
+  <div id="rebel-stars"></div>
+  <div style="font-size:72px;animation:rebellBounce 0.6s ease infinite alternate;">🔥</div>
+  <div style="font-family:'Black Han Sans',sans-serif;font-size:clamp(20px,5vw,42px);background:linear-gradient(135deg,#ffd700,#ff8c00,#ff4757);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.3;">당신은 진정한<br>반골기질 보유자!</div>
+  <div style="font-family:'Black Han Sans',sans-serif;font-size:clamp(48px,12vw,96px);color:#ffd700;text-shadow:0 0 40px rgba(255,215,0,.8),0 0 80px rgba(255,140,0,.5);" id="rebel-score-display">+50</div>
+  <div style="font-size:16px;color:rgba(255,255,255,.7);" id="rebel-name-display">닉네임</div>
+  <div style="font-size:13px;color:rgba(255,255,255,.4);">혼자 다른 선택으로 50점 획득! 🎯</div>
 </div>
 
 <!-- ROLE SELECT -->
@@ -227,7 +239,7 @@
       <div class="choice-panel left" id="panel-left">
         <div class="choice-emoji" id="left-emoji">🤔</div>
         <div class="choice-name" id="left-name">A</div>
-        <div class="vote-bar-wrap">
+        <div class="vote-bar-wrap" id="vote-stats" style="display:none">
           <div class="vote-count" id="left-count">0</div>
           <div class="vote-bar"><div class="vote-bar-fill left" id="left-bar" style="width:50%"></div></div>
         </div>
@@ -236,13 +248,13 @@
       <div class="choice-panel right" id="panel-right">
         <div class="choice-emoji" id="right-emoji">🤔</div>
         <div class="choice-name" id="right-name">B</div>
-        <div class="vote-bar-wrap">
+        <div class="vote-bar-wrap" id="vote-stats-r" style="display:none">
           <div class="vote-count" id="right-count">0</div>
           <div class="vote-bar"><div class="vote-bar-fill right" id="right-bar" style="width:50%"></div></div>
         </div>
       </div>
     </div>
-    <div class="voting-status">투표 현황: <span id="voted-count">0</span> / <span id="total-count">0</span>명 완료</div>
+    <div class="voting-status" id="voting-status-bar" style="display:none">투표 현황: <span id="voted-count">0</span> / <span id="total-count">0</span>명 완료</div>
   </div>
 </div>
 
@@ -333,16 +345,21 @@ const app = initializeApp({
 const db = getDatabase(app);
 
 // ── 상수 ──
-const TOTAL_ROUNDS = 5;
+const TOTAL_ROUNDS = 10;
 const VOTE_TIME = 10;
 const PTS_WIN = 10;
 
 const DEFAULT_ROUNDS = [
-  { left:{name:'이재명',emoji:'🏛️'}, right:{name:'BTS 정국',emoji:'🎤'} },
-  { left:{name:'손흥민',emoji:'⚽'}, right:{name:'류현진',emoji:'⚾'} },
-  { left:{name:'짜장면',emoji:'🍜'}, right:{name:'짬뽕',emoji:'🌶️'} },
-  { left:{name:'치킨',emoji:'🍗'}, right:{name:'피자',emoji:'🍕'} },
-  { left:{name:'아이유',emoji:'🎵'}, right:{name:'NewJeans',emoji:'👖'} },
+  { left:{name:'점심은 먹었어?',emoji:'🍚'}, right:{name:'나 다이어트 중',emoji:'🥗'} },
+  { left:{name:'문과',emoji:'📚'}, right:{name:'이과',emoji:'🔬'} },
+  { left:{name:'현생 살기',emoji:'😤'}, right:{name:'유튜브 보기',emoji:'📱'} },
+  { left:{name:'MBTI 믿음',emoji:'🧠'}, right:{name:'MBTI 헛소리',emoji:'🙄'} },
+  { left:{name:'치킨 뼈없는거',emoji:'🍗'}, right:{name:'치킨 뼈있는거',emoji:'🦴'} },
+  { left:{name:'카톡 읽씹',emoji:'😶'}, right:{name:'답장 칼답',emoji:'⚡'} },
+  { left:{name:'눈물의 여왕 봄',emoji:'😭'}, right:{name:'흑백요리사 봄',emoji:'🍳'} },
+  { left:{name:'스타벅스',emoji:'☕'}, right:{name:'메가커피',emoji:'💛'} },
+  { left:{name:'인싸',emoji:'🕺'}, right:{name:'아싸',emoji:'🏠'} },
+  { left:{name:'벚꽃 보러 나감',emoji:'🌸'}, right:{name:'집에서 유튜브',emoji:'🛋️'} },
 ];
 
 // ── 상태 ──
@@ -426,7 +443,7 @@ window.startLobby = async function() {
   });
 
   currentRound = 0;
-  const joinUrl = location.href.split('?')[0] + '?role=player';
+  const joinUrl = 'https://jjjune421-source.github.io/election-game/?role=player';
   window._joinUrl = joinUrl;
   document.getElementById('join-url-display').textContent = joinUrl;
 
@@ -450,7 +467,7 @@ window.startLobby = async function() {
 };
 
 window.copyUrl = function() {
-  const url = window._joinUrl || location.href;
+  const url = 'https://jjjune421-source.github.io/election-game/?role=player';
   navigator.clipboard.writeText(url).then(() => {
     document.getElementById('join-url-display').textContent = '✅ 링크 복사됨! 참가자에게 공유하세요';
     setTimeout(() => { document.getElementById('join-url-display').textContent = url; }, 2000);
@@ -496,6 +513,9 @@ async function hostStartRound() {
   document.getElementById('left-bar').style.width    = '50%';
   document.getElementById('right-bar').style.width   = '50%';
   document.getElementById('voted-count').textContent = '0';
+  document.getElementById('vote-stats').style.display = 'none';
+  document.getElementById('vote-stats-r').style.display = 'none';
+  document.getElementById('voting-status-bar').style.display = 'none';
   document.getElementById('panel-left').classList.remove('winning-glow-left');
   document.getElementById('panel-right').classList.remove('winning-glow-right');
 
@@ -508,18 +528,15 @@ async function hostStartRound() {
   // 투표 실시간 감시
   stopListener();
   let ended = false;
+  // 투표 중엔 결과 숨김 - 인원수만 추적
+  document.getElementById('vote-stats').style.display = 'none';
+  document.getElementById('vote-stats-r').style.display = 'none';
+  document.getElementById('voting-status-bar').style.display = 'none';
   gameListener = onValue(vRef(), snap => {
     if (ended) return;
     const votes = snap.val() || {};
-    const lc = Object.values(votes).filter(v=>v==='left').length;
-    const rc = Object.values(votes).filter(v=>v==='right').length;
-    const tot = lc + rc;
-    document.getElementById('left-count').textContent  = lc;
-    document.getElementById('right-count').textContent = rc;
+    const tot = Object.keys(votes).length;
     document.getElementById('voted-count').textContent = tot;
-    const lPct = tot > 0 ? lc/tot*100 : 50;
-    document.getElementById('left-bar').style.width  = lPct + '%';
-    document.getElementById('right-bar').style.width = (100-lPct) + '%';
     if (tot >= total && total > 0) {
       ended = true;
       stopListener();
@@ -564,29 +581,93 @@ async function hostEndVoting(votes) {
   clearInterval(timerInterval);
   const lc = Object.values(votes).filter(v=>v==='left').length;
   const rc = Object.values(votes).filter(v=>v==='right').length;
+  const total = lc + rc;
   const winner = lc > rc ? 'left' : rc > lc ? 'right' : 'tie';
+
+  // ── 결과 나오면 통계 공개 ──
+  document.getElementById('vote-stats').style.display = 'block';
+  document.getElementById('vote-stats-r').style.display = 'block';
+  document.getElementById('voting-status-bar').style.display = 'block';
+  document.getElementById('left-count').textContent  = lc;
+  document.getElementById('right-count').textContent = rc;
+  document.getElementById('voted-count').textContent = total;
+  const lPct = total > 0 ? lc/total*100 : 50;
+  document.getElementById('left-bar').style.width  = lPct + '%';
+  document.getElementById('right-bar').style.width = (100-lPct) + '%';
 
   if (winner==='left')  document.getElementById('panel-left').classList.add('winning-glow-left');
   if (winner==='right') document.getElementById('panel-right').classList.add('winning-glow-right');
 
-  // 점수 계산
+  // ── 역배당 룰 체크: 전체 중 1명만 반대편 선택 ──
+  let rebelName = null;
+  let rebelSide = null;
+  if (total >= 2) {
+    if (lc === 1 && rc >= total - 1) { rebelName = Object.entries(votes).find(([n,v])=>v==='left')?.[0]; rebelSide='left'; }
+    if (rc === 1 && lc >= total - 1) { rebelName = Object.entries(votes).find(([n,v])=>v==='right')?.[0]; rebelSide='right'; }
+  }
+
+  // ── 점수 계산 ──
   const sSnap = await get(sRef());
   const scores = sSnap.val() || {};
   const roundScores = {};
-  Object.entries(votes).forEach(([name, vote]) => {
-    const won = winner==='tie' || vote===winner;
-    const pts = won ? PTS_WIN : 0;
-    scores[name] = (scores[name] || 0) + pts;
-    roundScores[name] = pts;
-  });
+  const PTS_REBEL = 50;
+
+  if (rebelName) {
+    // 역배당 적용
+    Object.entries(votes).forEach(([name, vote]) => {
+      const pts = name === rebelName ? PTS_REBEL : PTS_WIN;
+      scores[name] = (scores[name] || 0) + pts;
+      roundScores[name] = pts;
+    });
+  } else {
+    Object.entries(votes).forEach(([name, vote]) => {
+      const won = winner==='tie' || vote===winner;
+      const pts = won ? PTS_WIN : 0;
+      scores[name] = (scores[name] || 0) + pts;
+      roundScores[name] = pts;
+    });
+  }
 
   await update(gRef(), {
     phase: 'result',
     scores,
-    roundResult: { winner, leftCount:lc, rightCount:rc, roundScores, round:currentRound }
+    roundResult: { winner, leftCount:lc, rightCount:rc, roundScores, round:currentRound, rebelName: rebelName || null }
   });
 
-  setTimeout(() => hostShowResult(winner, lc, rc, scores), 700);
+  // 역배당 발생 시 축하 화면 먼저
+  if (rebelName) {
+    setTimeout(() => showRebelCelebration(rebelName, scores, () => hostShowResult(winner, lc, rc, scores)), 600);
+  } else {
+    setTimeout(() => hostShowResult(winner, lc, rc, scores), 700);
+  }
+}
+
+function showRebelCelebration(name, scores, callback) {
+  const overlay = document.getElementById('rebel-overlay');
+  document.getElementById('rebel-name-display').textContent = name + '님';
+  document.getElementById('rebel-score-display').textContent = '+50점';
+  overlay.style.display = 'flex';
+
+  // 별 파티클
+  launchRebelStars();
+  launchConfetti();
+
+  // 4초 후 결과 화면으로
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    callback();
+  }, 4000);
+}
+
+function launchRebelStars() {
+  const emojis = ['⭐','🌟','💫','✨','🔥','👑','💥'];
+  for (let i=0;i<30;i++) setTimeout(()=>{
+    const el=document.createElement('div');
+    el.style.cssText=`position:fixed;font-size:${Math.random()*20+16}px;left:${Math.random()*100}vw;top:${Math.random()*80+10}vh;pointer-events:none;z-index:300;animation:starFloat ${Math.random()*1.5+1}s ease forwards;`;
+    el.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),2500);
+  },i*80);
 }
 
 function hostShowResult(winner, lc, rc, scores) {
@@ -696,11 +777,14 @@ function playerOnResult(g) {
   const myScore = scores[myName] || 0;
   const myRound = (res.roundScores||{})[myName];
 
+  const PTS_REBEL = 50;
+  const isRebel = res.rebelName === myName;
   let label, pts, cls;
-  if      (myRound === undefined)  { label='😴 이번 라운드 불참';      pts='+0';        cls='lose'; }
-  else if (res.winner === 'tie')   { label=`🤝 동률! 양쪽 모두 승리`; pts=`+${PTS_WIN}`; cls='tie';  }
-  else if (myRound === PTS_WIN)    { label='🎉 다수결 성공!';           pts=`+${PTS_WIN}`; cls='win';  }
-  else                             { label='😢 소수파 선택...';         pts='+0';        cls='lose'; }
+  if      (isRebel)                { label='🔥 반골기질 발동!';         pts=`+${PTS_REBEL}`; cls='win'; }
+  else if (myRound === undefined)  { label='😴 이번 라운드 불참';       pts='+0';            cls='lose'; }
+  else if (res.winner === 'tie')   { label='🤝 동률! 양쪽 모두 승리';  pts=`+${PTS_WIN}`;   cls='tie';  }
+  else if (myRound === PTS_WIN)    { label='🎉 다수결 성공!';            pts=`+${PTS_WIN}`;   cls='win';  }
+  else                             { label='😢 소수파 선택...';          pts='+0';            cls='lose'; }
 
   document.getElementById('result-label-text').textContent    = label;
   document.getElementById('result-points-value').textContent  = pts;
