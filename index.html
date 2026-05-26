@@ -151,6 +151,15 @@
   @keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
   @keyframes rebellBounce{from{transform:scale(1) rotate(-10deg)}to{transform:scale(1.2) rotate(10deg)}}
   @keyframes starFloat{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(-120px) rotate(360deg);opacity:0}}
+  .vote-breakdown-col{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;}
+  .breakdown-header{font-family:'Black Han Sans',sans-serif;font-size:13px;text-align:center;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+  .breakdown-header.left-h{color:var(--accent-l);}
+  .breakdown-header.right-h{color:var(--accent-r);}
+  .breakdown-header.tie-h{color:var(--gold);}
+  .breakdown-player{font-size:12px;padding:5px 10px;border-radius:999px;text-align:center;animation:popIn .3s cubic-bezier(.34,1.56,.64,1) forwards;opacity:0;}
+  .breakdown-player.left-p{background:rgba(255,71,87,.12);border:1px solid rgba(255,71,87,.25);color:var(--text);}
+  .breakdown-player.right-p{background:rgba(55,66,250,.12);border:1px solid rgba(55,66,250,.25);color:var(--text);}
+  .breakdown-player.rebel-p{background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.4);color:var(--gold);}
   .winning-glow-left{animation:glowL .8s ease;}
   .winning-glow-right{animation:glowR .8s ease;}
   @keyframes glowL{0%{box-shadow:0 0 0 0 rgba(255,71,87,0)}50%{box-shadow:0 0 80px 30px rgba(255,71,87,.35)}100%{box-shadow:0 0 0 0 rgba(255,71,87,0)}}
@@ -262,6 +271,7 @@
 <div class="screen" id="screen-host-result">
   <div class="result-title" id="result-round-title">라운드 1 결과</div>
   <div class="result-winner-badge" id="result-winner-badge"></div>
+  <div id="vote-breakdown" style="width:100%;max-width:560px;display:flex;gap:12px;"></div>
   <div class="scoreboard" id="scoreboard"></div>
   <button class="btn btn-primary" onclick="nextRound()" id="next-round-btn" style="max-width:280px">다음 라운드 →</button>
 </div>
@@ -619,10 +629,16 @@ async function hostEndVoting(votes) {
       scores[name] = (scores[name] || 0) + pts;
       roundScores[name] = pts;
     });
-  } else {
+  } else if (winner === 'tie') {
+    // 동점: 투표한 모든 사람에게 10점
     Object.entries(votes).forEach(([name, vote]) => {
-      const won = winner==='tie' || vote===winner;
-      const pts = won ? PTS_WIN : 0;
+      scores[name] = (scores[name] || 0) + PTS_WIN;
+      roundScores[name] = PTS_WIN;
+    });
+  } else {
+    // 일반: 다수 선택자에게만 10점
+    Object.entries(votes).forEach(([name, vote]) => {
+      const pts = vote === winner ? PTS_WIN : 0;
       scores[name] = (scores[name] || 0) + pts;
       roundScores[name] = pts;
     });
@@ -636,9 +652,9 @@ async function hostEndVoting(votes) {
 
   // 역배당 발생 시 축하 화면 먼저
   if (rebelName) {
-    setTimeout(() => showRebelCelebration(rebelName, scores, () => hostShowResult(winner, lc, rc, scores)), 600);
+    setTimeout(() => showRebelCelebration(rebelName, scores, () => hostShowResult(winner, lc, rc, scores, votes, rebelName)), 600);
   } else {
-    setTimeout(() => hostShowResult(winner, lc, rc, scores), 700);
+    setTimeout(() => hostShowResult(winner, lc, rc, scores, votes, rebelName), 700);
   }
 }
 
@@ -670,7 +686,7 @@ function launchRebelStars() {
   },i*80);
 }
 
-function hostShowResult(winner, lc, rc, scores) {
+function hostShowResult(winner, lc, rc, scores, votes, rebelName) {
   const round = roundConfig[currentRound];
   const isLast = currentRound >= TOTAL_ROUNDS - 1;
   document.getElementById('result-round-title').textContent = `라운드 ${currentRound+1} 결과`;
@@ -678,9 +694,39 @@ function hostShowResult(winner, lc, rc, scores) {
   document.getElementById('result-winner-badge').textContent = winner==='tie'
     ? `🤝 동률! 양쪽 모두 ${PTS_WIN}점!`
     : `🏆 다수결 승리: ${wObj.emoji} ${wObj.name} (${winner==='left'?lc:rc}표)`;
+
+  // 누가 어디 투표했는지 렌더링 (votes 직접 전달)
+  renderVoteBreakdown(winner, round, votes || {}, rebelName || null);
+
   renderBoard('scoreboard', scores);
   document.getElementById('next-round-btn').textContent = isLast ? '🏆 최종 결과 보기' : `다음 라운드 → (${currentRound+2}/${TOTAL_ROUNDS})`;
   showScreen('screen-host-result');
+}
+
+function renderVoteBreakdown(winner, round, votes, rebelName) {
+  const leftVoters  = Object.entries(votes).filter(([n,v])=>v==='left').map(([n])=>n);
+  const rightVoters = Object.entries(votes).filter(([n,v])=>v==='right').map(([n])=>n);
+
+  const lHeader = winner==='left'  ? 'left-h' : winner==='tie' ? 'tie-h' : 'left-h';
+  const rHeader = winner==='right' ? 'right-h': winner==='tie' ? 'tie-h' : 'right-h';
+
+  function playerChip(name, side) {
+    const isRebel = name === rebelName;
+    const cls = isRebel ? 'rebel-p' : (side==='left' ? 'left-p' : 'right-p');
+    const label = isRebel ? `👑 ${name}` : name;
+    return `<div class="breakdown-player ${cls}" style="animation-delay:${Math.random()*0.3}s">${label}</div>`;
+  }
+
+  document.getElementById('vote-breakdown').innerHTML = `
+    <div class="vote-breakdown-col">
+      <div class="breakdown-header ${lHeader}">${round.left.emoji} ${round.left.name} · ${leftVoters.length}표</div>
+      ${leftVoters.length ? leftVoters.map(n=>playerChip(n,'left')).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;">없음</div>'}
+    </div>
+    <div class="vote-breakdown-col">
+      <div class="breakdown-header ${rHeader}">${round.right.emoji} ${round.right.name} · ${rightVoters.length}표</div>
+      ${rightVoters.length ? rightVoters.map(n=>playerChip(n,'right')).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;">없음</div>'}
+    </div>
+  `;
 }
 
 window.nextRound = async function() {
